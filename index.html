@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.2.0/dist/leaflet.css" />
+  <link rel="stylesheet" href="dist/leaflet-routing-machine.css" />
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <div id="map" class="map"></div>
+  <script src="https://unpkg.com/leaflet@1.2.0/dist/leaflet.js"></script>
+  <script src="./dist/leaflet-routing-machine.js"></script>
+  <script src="./dist/Control.Geocoder.js"></script>
+  <script src="./indiastations.js"></script>
+  <script src="./utility.js"></script>
+  <script>
+    var map = L.map('map')
+    // .setView([28, 70],8);;
+
+    L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    var control = L.Routing.control({
+      waypoints: [
+        L.latLng(28.582798, 77.310222),
+        L.latLng(28.7919, 76.9541)
+      ],
+      geocoder: L.Control.Geocoder.nominatim(),
+      suggest:true,
+      routeWhileDragging: true,
+      reverseWaypoints: true,
+      showAlternatives: true,
+      lineOptions: {
+        styles: [
+          { color: 'black', opacity: 0, weight: 3 },
+        ]
+      },
+      altLineOptions: {
+        styles: [
+          { color: 'black', opacity: 0.8, weight: 2 },
+        ]
+      }
+    }).addTo(map);
+    L.Routing.errorControl(control).addTo(map);
+    control.on('routeselected', e => {
+      createColoRoad(e)
+      let x = getOnScreenStations()
+      getDataOfMap(x).then((stations) => {
+        createColoRoad(e,stations)
+      });
+    });
+
+    let layer
+    function createColoRoad(e,stations) {
+      let temp = new Array();
+
+      if (layer != undefined)
+        layer.clearLayers()//reset
+
+      let arr = e.route.coordinates.map(crd => [crd.lat, crd.lng])
+      arr.reduce((prev, now, index, arrr) => {
+        let line = L.polyline([prev, now])
+        if(stations){
+          let nearStation = checknear(prev,stations)
+          line.setStyle({ color: nearStation.color, weight: 3 })
+          line.bindPopup(nearStation.name)
+        }else{
+          line.setStyle({ color: 'blue', weight: 3 })
+        }
+        temp.push(line)
+        return now
+      })
+      layer = L.layerGroup(temp).addTo(map);
+    }
+
+
+    function getDataOfMap(stations) {
+      let arrofpromis = stations.map((station) => {
+        let one = fetch(
+          `http://jtaqi.herokuapp.com/data?lat=${station.lat}&lon=${station.lng}`
+        )
+          .then((r) => r.json())
+          .then((x) => {
+            let b = color(x.list[0].components.pm10);
+            station.color = b;
+            return station;
+          })
+          .catch((e) => undefined);
+        if (one) return one;
+      });
+      return Promise.all(arrofpromis);
+    }
+    function color(c) {
+      if (c < 50) {
+        return "green";
+      }
+      if (c < 60) {
+        return "#70b900";
+      }
+      if (c < 70) {
+        return "yellow";
+      }
+      if (c < 80) {
+        return "orange";
+      }
+      if (c > 80) {
+        return "red";
+      }
+    }
+  </script>
+</body>
+</html>
+
+</html>
